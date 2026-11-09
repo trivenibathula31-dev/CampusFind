@@ -1,0 +1,24 @@
+
+{
+  "name": "campusfind-mern",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "nodemon server/index.js",
+    "client": "npm --prefix client run dev"
+  },
+  "dependencies": {
+    "bcryptjs": "latest",
+    "concurrently": "latest",
+    "cors": "latest",
+    "dotenv": "latest",
+    "express": "latest",
+    "jsonwebtoken": "latest",
+    "mongoose": "latest",
+    "multer": "latest",
+    "nodemailer": "latest",
+    "nodemon": "latest"
+  }
+}
