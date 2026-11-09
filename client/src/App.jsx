@@ -1,5 +1,6 @@
 
 import React, { useEffect, useState } from "react";
+import "./style.css";
 
 const API = "/api";
 
@@ -19,7 +20,9 @@ export default function App() {
   );
 
   const [user, setUser] = useState(null);
+
   const [authMode, setAuthMode] = useState("login");
+  const [showAuth, setShowAuth] = useState(false);
 
   const [auth, setAuth] = useState({
     name: "",
@@ -66,7 +69,7 @@ export default function App() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error);
+        throw new Error(data.error || "Unable to load items");
       }
 
       setItems(data);
@@ -81,23 +84,62 @@ export default function App() {
 
   // GET CURRENT USER
   useEffect(() => {
-    if (!token) return;
+    if (!token) {
+      setUser(null);
+      return;
+    }
 
     fetch(`${API}/auth/me`, {
-      headers: headers()
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
     })
-      .then(res => res.json())
-      .then(data => {
+      .then(async (res) => {
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Session expired");
+        }
+
+        return data;
+      })
+      .then((data) => {
         if (data.email) {
           setUser(data);
         } else {
           logout();
         }
       })
-      .catch(() => logout());
+      .catch(() => {
+        logout();
+      });
   }, [token]);
 
-  // LOGIN OR REGISTER
+  // OPEN LOGIN
+  function openLogin() {
+    setAuthMode("login");
+    setAuth({
+      name: "",
+      email: "",
+      password: ""
+    });
+    setError("");
+    setShowAuth(true);
+  }
+
+  // OPEN REGISTER
+  function openRegister() {
+    setAuthMode("register");
+    setAuth({
+      name: "",
+      email: "",
+      password: ""
+    });
+    setError("");
+    setShowAuth(true);
+  }
+
+  // LOGIN / REGISTER
   async function authSubmit(e) {
     e.preventDefault();
     setError("");
@@ -117,17 +159,25 @@ export default function App() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error);
+        throw new Error(data.error || "Authentication failed");
       }
 
-      localStorage.setItem(
-        "cf_token",
-        data.token
-      );
+      if (!data.token) {
+        throw new Error("Token was not received from server");
+      }
+
+      localStorage.setItem("cf_token", data.token);
 
       setToken(data.token);
-      setUser(data.user);
+      setUser(data.user || null);
+
+      setShowAuth(false);
       setMessage("Welcome to CampusFind!");
+      setAuth({
+        name: "",
+        email: "",
+        password: ""
+      });
 
     } catch (err) {
       setError(err.message);
@@ -137,13 +187,22 @@ export default function App() {
   // LOGOUT
   function logout() {
     localStorage.removeItem("cf_token");
+
     setToken("");
     setUser(null);
+
+    setShowAuth(false);
+    setShowReport(false);
+    setShowProof(false);
+
+    setMessage("You have logged out successfully.");
+    setError("");
   }
 
   // CREATE REPORT
   async function reportSubmit(e) {
     e.preventDefault();
+    setError("");
 
     try {
       const response = await fetch(
@@ -158,7 +217,7 @@ export default function App() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error);
+        throw new Error(data.error || "Report failed");
       }
 
       setShowReport(false);
@@ -175,6 +234,7 @@ export default function App() {
   // SUBMIT PHOTO PROOF
   async function proofSubmit(e) {
     e.preventDefault();
+    setError("");
 
     if (!proof) {
       setError("Please select photo proof");
@@ -200,7 +260,7 @@ export default function App() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error);
+        throw new Error(data.error || "Proof upload failed");
       }
 
       setShowProof(false);
@@ -233,7 +293,7 @@ export default function App() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error);
+        throw new Error(data.error || "Unable to update item");
       }
 
       setMessage("Item marked as Returned");
@@ -262,9 +322,10 @@ export default function App() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error);
+        throw new Error(data.error || "Unable to delete report");
       }
 
+      setMessage("Report deleted successfully");
       loadItems();
 
     } catch (err) {
@@ -275,39 +336,52 @@ export default function App() {
   return (
     <div className="app">
 
+      {/* HEADER */}
       <header>
         <div className="brand">
           <h1>⌕ CampusFind</h1>
           <p>Smart Campus Lost & Found</p>
         </div>
 
-        {user ? (
-          <div className="headerActions">
-            <span>Hi, {user.name}</span>
+        <div className="headerActions">
 
-            <button onClick={logout}>
-              Logout
-            </button>
+          {!user ? (
+            <>
+              <button onClick={openLogin}>
+                Login
+              </button>
 
-            <button
-              onClick={() => {
-                setForm(emptyForm);
-                setShowReport(true);
-              }}
-            >
-              + Report Item
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setAuthMode("login")}
-          >
-            Login / Register
-          </button>
-        )}
+              <button onClick={openRegister}>
+                Register
+              </button>
+            </>
+          ) : (
+            <>
+              <span>
+                Hi, {user.name || user.email}
+              </span>
+
+              <button onClick={logout}>
+                Logout
+              </button>
+
+              <button
+                onClick={() => {
+                  setForm(emptyForm);
+                  setShowReport(true);
+                }}
+              >
+                + Report Item
+              </button>
+            </>
+          )}
+
+        </div>
       </header>
 
       <main>
+
+        {/* HERO SECTION */}
         <section className="hero">
           <h2>
             Lost it. Found it.
@@ -321,6 +395,7 @@ export default function App() {
           </p>
 
           <div className="stats">
+
             <div>
               <b>{items.length}</b>
               <p>Total Reports</p>
@@ -343,31 +418,32 @@ export default function App() {
               </b>
               <p>Found Items</p>
             </div>
+
           </div>
         </section>
 
+        {/* SEARCH AND FILTER */}
         <section className="toolbar">
+
           <input
             placeholder="Search items..."
             value={search}
-            onChange={e =>
-              setSearch(e.target.value)
-            }
+            onChange={e => setSearch(e.target.value)}
           />
 
           <select
             value={filter}
-            onChange={e =>
-              setFilter(e.target.value)
-            }
+            onChange={e => setFilter(e.target.value)}
           >
             <option>All</option>
             <option>Lost</option>
             <option>Found</option>
             <option>Returned</option>
           </select>
+
         </section>
 
+        {/* MESSAGES */}
         {error && (
           <p className="error">{error}</p>
         )}
@@ -376,180 +452,204 @@ export default function App() {
           <p className="success">{message}</p>
         )}
 
+        {/* ITEMS */}
         <section className="items">
-          {items.map(item => (
-            <article
-              className="card"
-              key={item._id}
-            >
-              <span className={`status ${item.status}`}>
-                {item.status}
-              </span>
 
-              <h3>{item.title}</h3>
+          {items.length === 0 ? (
+            <p>No items found.</p>
+          ) : (
+            items.map(item => (
 
-              <p>{item.description}</p>
+              <article
+                className="card"
+                key={item._id}
+              >
 
-              <p>Category: {item.category}</p>
+                <span className={`status ${item.status}`}>
+                  {item.status}
+                </span>
 
-              <p>Location: {item.location}</p>
+                <h3>{item.title}</h3>
 
-              <p>Date: {item.date}</p>
+                <p>{item.description}</p>
 
-              <p>
-                Reported by:{" "}
-                {item.reporter?.name}
-              </p>
+                <p>Category: {item.category}</p>
 
-              {item.proofUrl && (
-                <div>
-                  <a
-                    href={`http://localhost:5000${item.proofUrl}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    View Photo Proof
-                  </a>
-                </div>
-              )}
+                <p>Location: {item.location}</p>
 
-              {item.status === "Lost" &&
-                user &&
-                item.reporter?._id !== user._id && (
-                  <button
-                    onClick={() => {
-                      setProofItem(item._id);
-                      setShowProof(true);
-                    }}
-                  >
-                    I Found This
-                  </button>
+                <p>Date: {item.date}</p>
+
+                <p>
+                  Reported by: {item.reporter?.name}
+                </p>
+
+                {item.proofUrl && (
+                  <div>
+                    <a
+                      href={`http://localhost:5000${item.proofUrl}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      View Photo Proof
+                    </a>
+                  </div>
                 )}
 
-              {item.status === "Found" &&
-                user &&
-                item.reporter?._id === user._id && (
-                  <button
-                    onClick={() =>
-                      markReturned(item._id)
-                    }
-                  >
-                    Mark Returned
-                  </button>
-                )}
+                {item.status === "Lost" &&
+                  user &&
+                  item.reporter?._id !== user._id && (
+                    <button
+                      onClick={() => {
+                        setProofItem(item._id);
+                        setShowProof(true);
+                      }}
+                    >
+                      I Found This
+                    </button>
+                  )}
 
-              {item.status === "Found" &&
-                item.reporter?.email && (
-                  <a
-                    href={
-                      "mailto:" +
-                      item.reporter.email +
-                      "?subject=" +
-                      encodeURIComponent(
-                        "CampusFind: " + item.title
-                      )
-                    }
-                  >
-                    Email Reporter
-                  </a>
-                )}
+                {item.status === "Found" &&
+                  user &&
+                  item.reporter?._id === user._id && (
+                    <button
+                      onClick={() => markReturned(item._id)}
+                    >
+                      Mark Returned
+                    </button>
+                  )}
 
-              {user &&
-                item.reporter?._id === user._id && (
-                  <button
-                    className="delete"
-                    onClick={() =>
-                      deleteItem(item._id)
-                    }
-                  >
-                    Delete Report
-                  </button>
-                )}
-            </article>
-          ))}
+                {item.status === "Found" &&
+                  item.reporter?.email && (
+                    <a
+                      href={
+                        "mailto:" +
+                        item.reporter.email +
+                        "?subject=" +
+                        encodeURIComponent(
+                          "CampusFind: " + item.title
+                        )
+                      }
+                    >
+                      Email Reporter
+                    </a>
+                  )}
+
+                {user &&
+                  item.reporter?._id === user._id && (
+                    <button
+                      className="delete"
+                      onClick={() => deleteItem(item._id)}
+                    >
+                      Delete Report
+                    </button>
+                  )}
+
+              </article>
+
+            ))
+          )}
+
         </section>
       </main>
 
-      {/* LOGIN / REGISTER */}
+      {/* LOGIN / REGISTER POPUP */}
+      {showAuth && !user && (
+        <div className="modal">
+          <div className="authBox">
 
-      {!user && (
-        <div className="authBox">
-          <h2>
-            {authMode === "login"
-              ? "Login"
-              : "Register"}
-          </h2>
+            <button
+              type="button"
+              className="close-btn"
+              onClick={() => setShowAuth(false)}
+            >
+              ✕
+            </button>
 
-          <button
-            onClick={() =>
-              setAuthMode(
-                authMode === "login"
-                  ? "register"
-                  : "login"
-              )
-            }
-          >
-            Switch to{" "}
-            {authMode === "login"
-              ? "Register"
-              : "Login"}
-          </button>
+            <h2>
+              {authMode === "login" ? "Login" : "Register"}
+            </h2>
 
-          <form onSubmit={authSubmit}>
-            {authMode === "register" && (
+            <form onSubmit={authSubmit}>
+
+              {authMode === "register" && (
+                <input
+                  placeholder="Full Name"
+                  required
+                  value={auth.name}
+                  onChange={e =>
+                    setAuth({
+                      ...auth,
+                      name: e.target.value
+                    })
+                  }
+                />
+              )}
+
               <input
-                placeholder="Full Name"
+                type="email"
+                placeholder="Email"
                 required
-                value={auth.name}
+                value={auth.email}
                 onChange={e =>
                   setAuth({
                     ...auth,
-                    name: e.target.value
+                    email: e.target.value
                   })
                 }
               />
-            )}
 
-            <input
-              type="email"
-              placeholder="Email"
-              required
-              value={auth.email}
-              onChange={e =>
-                setAuth({
-                  ...auth,
-                  email: e.target.value
-                })
-              }
-            />
+              <input
+                type="password"
+                placeholder="Password (minimum 6)"
+                minLength="6"
+                required
+                value={auth.password}
+                onChange={e =>
+                  setAuth({
+                    ...auth,
+                    password: e.target.value
+                  })
+                }
+              />
 
-            <input
-              type="password"
-              placeholder="Password (minimum 6)"
-              minLength="6"
-              required
-              value={auth.password}
-              onChange={e =>
-                setAuth({
-                  ...auth,
-                  password: e.target.value
-                })
-              }
-            />
+              <button type="submit">
+                {authMode === "login"
+                  ? "Login"
+                  : "Create Account"}
+              </button>
 
-            <button>
+            </form>
+
+            <p>
               {authMode === "login"
-                ? "Login"
-                : "Create Account"}
+                ? "Don't have an account?"
+                : "Already have an account?"}
+            </p>
+
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode(
+                  authMode === "login"
+                    ? "register"
+                    : "login"
+                );
+                setError("");
+              }}
+            >
+              {authMode === "login"
+                ? "Register"
+                : "Login"}
             </button>
-          </form>
+
+          </div>
         </div>
       )}
 
       {/* REPORT ITEM FORM */}
-
       {showReport && (
         <div className="modal">
+
           <form onSubmit={reportSubmit}>
             <h2>Report an Item</h2>
 
@@ -575,6 +675,23 @@ export default function App() {
                 })
               }
             />
+
+            <select
+              value={form.category}
+              onChange={e =>
+                setForm({
+                  ...form,
+                  category: e.target.value
+                })
+              }
+            >
+              <option>Other</option>
+              <option>Electronics</option>
+              <option>Books</option>
+              <option>Clothing</option>
+              <option>Accessories</option>
+              <option>Documents</option>
+            </select>
 
             <select
               value={form.status}
@@ -625,7 +742,9 @@ export default function App() {
               }
             />
 
-            <button>Submit Report</button>
+            <button type="submit">
+              Submit Report
+            </button>
 
             <button
               type="button"
@@ -633,20 +752,20 @@ export default function App() {
             >
               Cancel
             </button>
+
           </form>
         </div>
       )}
 
       {/* FOUND PROOF FORM */}
-
       {showProof && (
         <div className="modal">
+
           <form onSubmit={proofSubmit}>
             <h2>Upload Found Proof</h2>
 
             <p>
-              Upload a photo of the item
-              you have found.
+              Upload a photo of the item you have found.
             </p>
 
             <input
@@ -658,7 +777,7 @@ export default function App() {
               }
             />
 
-            <button>
+            <button type="submit">
               Submit Proof & Notify Reporter
             </button>
 
@@ -668,6 +787,7 @@ export default function App() {
             >
               Cancel
             </button>
+
           </form>
         </div>
       )}
