@@ -1,4 +1,5 @@
 
+import dns from "node:dns";
 import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
@@ -7,6 +8,9 @@ import dotenv from "dotenv";
 import authRoutes from "./routes/auth.js";
 import itemRoutes from "./routes/items.js";
 import uploadRoutes from "./routes/upload.js";
+
+// DNS workaround for MongoDB Atlas SRV lookup
+dns.setServers(["8.8.8.8", "1.1.1.1"]);
 
 dotenv.config();
 
@@ -29,7 +33,7 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "CampusFind API running" });
 });
 
-// MongoDB connection
+// MongoDB connection string
 const mongoUri = process.env.MONGO_URI?.trim();
 
 console.log("MongoDB URI status:", {
@@ -40,17 +44,18 @@ console.log("MongoDB URI status:", {
   length: mongoUri?.length || 0
 });
 
+// Validate MongoDB URI
 if (
   !mongoUri ||
   (!mongoUri.startsWith("mongodb://") &&
     !mongoUri.startsWith("mongodb+srv://"))
 ) {
   throw new Error(
-    "Invalid or missing MONGO_URI. Check Render Environment Variables."
+    "Invalid or missing MONGO_URI. Check your .env or Render Environment Variables."
   );
 }
 
-// Connect database and start server
+// Connect MongoDB and start server
 mongoose
   .connect(mongoUri)
   .then(() => {
