@@ -9,8 +9,10 @@ import authRoutes from "./routes/auth.js";
 import itemRoutes from "./routes/items.js";
 import uploadRoutes from "./routes/upload.js";
 
-// DNS workaround for MongoDB Atlas SRV lookup
-dns.setServers(["8.8.8.8", "1.1.1.1"]);
+// DNS workaround only for Windows local development
+if (process.platform === "win32") {
+  dns.setServers(["8.8.8.8", "1.1.1.1"]);
+}
 
 dotenv.config();
 
@@ -33,7 +35,7 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "CampusFind API running" });
 });
 
-// MongoDB connection string
+// MongoDB URI
 const mongoUri = process.env.MONGO_URI?.trim();
 
 console.log("MongoDB URI status:", {
@@ -51,11 +53,11 @@ if (
     !mongoUri.startsWith("mongodb+srv://"))
 ) {
   throw new Error(
-    "Invalid or missing MONGO_URI. Check your .env or Render Environment Variables."
+    "Invalid or missing MONGO_URI. Check Environment Variables."
   );
 }
 
-// Connect MongoDB and start server
+// Connect MongoDB
 mongoose
   .connect(mongoUri)
   .then(() => {
@@ -68,6 +70,6 @@ mongoose
     });
   })
   .catch((err) => {
-    console.error("MongoDB connection error:", err.message);
+    console.error("MongoDB connection error:", err);
     process.exit(1);
   });
