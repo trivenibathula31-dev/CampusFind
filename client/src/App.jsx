@@ -2,7 +2,8 @@
 import React, { useEffect, useState } from "react";
 import "./style.css";
 
-const API = "/api";
+const API = "https://campusfind-tzsz.onrender.com/api";
+const BACKEND_URL = "https://campusfind-tzsz.onrender.com";
 
 const emptyForm = {
   title: "",
@@ -13,6 +14,29 @@ const emptyForm = {
   date: new Date().toISOString().slice(0, 10),
   contact: ""
 };
+
+// SAFE JSON RESPONSE HANDLER
+async function readResponse(response) {
+  const text = await response.text();
+
+  let data = {};
+
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch (error) {
+    throw new Error(
+      "Invalid server response. Check backend logs."
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data.error || data.message || "Something went wrong"
+    );
+  }
+
+  return data;
+}
 
 export default function App() {
   const [token, setToken] = useState(
@@ -52,6 +76,8 @@ export default function App() {
   // LOAD ITEMS
   async function loadItems() {
     try {
+      setError("");
+
       const params = new URLSearchParams();
 
       if (filter !== "All") {
@@ -66,15 +92,11 @@ export default function App() {
         `${API}/items?${params}`
       );
 
-      const data = await response.json();
+      const data = await readResponse(response);
 
-      if (!response.ok) {
-        throw new Error(data.error || "Unable to load items");
-      }
-
-      setItems(data);
+      setItems(Array.isArray(data) ? data : []);
     } catch (err) {
-      setError("Cannot connect to backend");
+      setError(err.message || "Cannot connect to backend");
     }
   }
 
@@ -89,53 +111,60 @@ export default function App() {
       return;
     }
 
-    fetch(`${API}/auth/me`, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    })
-      .then(async (res) => {
-        const data = await res.json();
+    async function getCurrentUser() {
+      try {
+        const response = await fetch(`${API}/auth/me`, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
 
-        if (!res.ok) {
-          throw new Error(data.error || "Session expired");
-        }
+        const data = await readResponse(response);
 
-        return data;
-      })
-      .then((data) => {
         if (data.email) {
           setUser(data);
+        } else if (data.user && data.user.email) {
+          setUser(data.user);
         } else {
           logout();
         }
-      })
-      .catch(() => {
-        logout();
-      });
+      } catch (err) {
+        localStorage.removeItem("cf_token");
+        setToken("");
+        setUser(null);
+      }
+    }
+
+    getCurrentUser();
   }, [token]);
 
   // OPEN LOGIN
   function openLogin() {
     setAuthMode("login");
+
     setAuth({
       name: "",
       email: "",
       password: ""
     });
+
     setError("");
+    setMessage("");
     setShowAuth(true);
   }
 
   // OPEN REGISTER
   function openRegister() {
     setAuthMode("register");
+
     setAuth({
       name: "",
       email: "",
       password: ""
     });
+
     setError("");
+    setMessage("");
     setShowAuth(true);
   }
 
@@ -156,23 +185,22 @@ export default function App() {
         }
       );
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Authentication failed");
-      }
+      const data = await readResponse(response);
 
       if (!data.token) {
-        throw new Error("Token was not received from server");
+        throw new Error(
+          "Token was not received from server"
+        );
       }
 
       localStorage.setItem("cf_token", data.token);
 
-      setToken(data.token);
       setUser(data.user || null);
+      setToken(data.token);
 
       setShowAuth(false);
       setMessage("Welcome to CampusFind!");
+
       setAuth({
         name: "",
         email: "",
@@ -214,11 +242,7 @@ export default function App() {
         }
       );
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Report failed");
-      }
+      await readResponse(response);
 
       setShowReport(false);
       setForm(emptyForm);
@@ -257,11 +281,7 @@ export default function App() {
         }
       );
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Proof upload failed");
-      }
+      const data = await readResponse(response);
 
       setShowProof(false);
       setProof(null);
@@ -290,11 +310,7 @@ export default function App() {
         }
       );
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Unable to update item");
-      }
+      await readResponse(response);
 
       setMessage("Item marked as Returned");
       loadItems();
@@ -319,11 +335,7 @@ export default function App() {
         }
       );
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Unable to delete report");
-      }
+      await readResponse(response);
 
       setMessage("Report deleted successfully");
       loadItems();
@@ -344,7 +356,6 @@ export default function App() {
         </div>
 
         <div className="headerActions">
-
           {!user ? (
             <>
               <button onClick={openLogin}>
@@ -375,7 +386,6 @@ export default function App() {
               </button>
             </>
           )}
-
         </div>
       </header>
 
@@ -395,7 +405,6 @@ export default function App() {
           </p>
 
           <div className="stats">
-
             <div>
               <b>{items.length}</b>
               <p>Total Reports</p>
@@ -418,13 +427,11 @@ export default function App() {
               </b>
               <p>Found Items</p>
             </div>
-
           </div>
         </section>
 
         {/* SEARCH AND FILTER */}
         <section className="toolbar">
-
           <input
             placeholder="Search items..."
             value={search}
@@ -440,7 +447,6 @@ export default function App() {
             <option>Found</option>
             <option>Returned</option>
           </select>
-
         </section>
 
         {/* MESSAGES */}
@@ -454,12 +460,10 @@ export default function App() {
 
         {/* ITEMS */}
         <section className="items">
-
           {items.length === 0 ? (
             <p>No items found.</p>
           ) : (
             items.map(item => (
-
               <article
                 className="card"
                 key={item._id}
@@ -486,7 +490,7 @@ export default function App() {
                 {item.proofUrl && (
                   <div>
                     <a
-                      href={`http://localhost:5000${item.proofUrl}`}
+                      href={`${BACKEND_URL}${item.proofUrl}`}
                       target="_blank"
                       rel="noreferrer"
                     >
@@ -545,10 +549,8 @@ export default function App() {
                   )}
 
               </article>
-
             ))
           )}
-
         </section>
       </main>
 
@@ -649,7 +651,6 @@ export default function App() {
       {/* REPORT ITEM FORM */}
       {showReport && (
         <div className="modal">
-
           <form onSubmit={reportSubmit}>
             <h2>Report an Item</h2>
 
@@ -752,7 +753,6 @@ export default function App() {
             >
               Cancel
             </button>
-
           </form>
         </div>
       )}
@@ -760,7 +760,6 @@ export default function App() {
       {/* FOUND PROOF FORM */}
       {showProof && (
         <div className="modal">
-
           <form onSubmit={proofSubmit}>
             <h2>Upload Found Proof</h2>
 
@@ -787,7 +786,6 @@ export default function App() {
             >
               Cancel
             </button>
-
           </form>
         </div>
       )}
